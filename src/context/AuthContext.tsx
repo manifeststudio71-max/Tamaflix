@@ -3,10 +3,19 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+export interface UserAccount {
+  name: string;
+  email: string;
+  password?: string;
+  createdAt?: string;
+}
+
 interface AuthContextType {
   isLoggedIn: boolean;
   userEmail: string | null;
-  login: (email: string) => void;
+  userName: string | null;
+  login: (email: string, password?: string) => { success: boolean; error?: string };
+  register: (name: string, email: string, password: string) => { success: boolean; error?: string };
   logout: () => void;
   requireAuth: (callback?: () => void, returnUrl?: string) => boolean;
   isReady: boolean;
@@ -14,9 +23,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const USERS_STORAGE_KEY = "tamaflix_registered_users";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [isReady, setIsReady] = useState<boolean>(false);
   const router = useRouter();
 
@@ -24,8 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const storedAuth = localStorage.getItem("isLoggedIn") === "true";
       const storedEmail = localStorage.getItem("userEmail");
+      const storedName = localStorage.getItem("userName");
       setIsLoggedIn(storedAuth);
       setUserEmail(storedEmail || (storedAuth ? "user@tamaflix.com" : null));
+      setUserName(storedName || (storedAuth ? "TAMAFLIX Member" : null));
     } catch {
       // ignore SSR or storage access errors
     } finally {
@@ -33,26 +47,117 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = (email: string) => {
+  const getStoredUsers = (): UserAccount[] => {
     try {
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userEmail", email);
-    } catch (err) {
-      console.error("Failed to write to localStorage:", err);
+      const raw = localStorage.getItem(USERS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
     }
-    setIsLoggedIn(true);
-    setUserEmail(email);
+  };
+
+  const register = (
+    name: string,
+    email: string,
+    password: string
+  ): { success: boolean; error?: string } => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (!cleanEmail.includes("@")) {
+      return { success: false, error: "Please enter a valid email address." };
+    }
+    if (password.length < 4) {
+      return { success: false, error: "Password must be at least 4 characters long." };
+    }
+
+    try {
+      const existingUsers = getStoredUsers();
+      const existing = existingUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (existing) {
+        return {
+          success: false,
+          error: "An account with this email already exists. Please sign in.",
+        };
+      }
+
+      const newUser: UserAccount = {
+        name: cleanName || cleanEmail.split("@")[0],
+        email: cleanEmail,
+        password: password,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedList = [...existingUsers, newUser];
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedList));
+
+      // Auto sign in user upon successful registration
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", cleanEmail);
+      localStorage.setItem("userName", newUser.name);
+
+      setIsLoggedIn(true);
+      setUserEmail(cleanEmail);
+      setUserName(newUser.name);
+
+      return { success: true };
+    } catch (err) {
+      console.error("Registration error:", err);
+      return { success: false, error: "Failed to save registration data to browser." };
+    }
+  };
+
+  const login = (
+    email: string,
+    password?: string
+  ): { success: boolean; error?: string } => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail.includes("@")) {
+      return { success: false, error: "Please enter a valid email address." };
+    }
+
+    try {
+      const existingUsers = getStoredUsers();
+      const matched = existingUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+      if (matched && password && matched.password && matched.password !== password) {
+        return { success: false, error: "Incorrect password for this account." };
+      }
+
+      const displayName = matched?.name || cleanEmail.split("@")[0];
+
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", cleanEmail);
+      localStorage.setItem("userName", displayName);
+
+      setIsLoggedIn(true);
+      setUserEmail(cleanEmail);
+      setUserName(displayName);
+
+      return { success: true };
+    } catch (err) {
+      console.error("Login storage error:", err);
+      // Fallback
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", cleanEmail);
+      setIsLoggedIn(true);
+      setUserEmail(cleanEmail);
+      return { success: true };
+    }
   };
 
   const logout = () => {
     try {
       localStorage.removeItem("isLoggedIn");
       localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
     } catch (err) {
       console.error("Failed to remove from localStorage:", err);
     }
     setIsLoggedIn(false);
     setUserEmail(null);
+    setUserName(null);
   };
 
   /**
@@ -84,7 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         isLoggedIn,
         userEmail,
+        userName,
         login,
+        register,
         logout,
         requireAuth,
         isReady,

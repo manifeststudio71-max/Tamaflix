@@ -131,12 +131,20 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              <Link
-                href="/login"
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs sm:text-sm px-4 py-1.5 sm:px-5 sm:py-2 rounded transition-all duration-200 shadow-lg hover:shadow-red-600/30"
-              >
-                Sign In
-              </Link>
+              <div className="flex items-center space-x-2">
+                <Link
+                  href="/login?mode=signup"
+                  className="hidden sm:inline-block text-zinc-300 hover:text-white font-medium text-xs sm:text-sm px-3 py-1.5 transition-colors"
+                >
+                  Register
+                </Link>
+                <Link
+                  href="/login"
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs sm:text-sm px-4 py-1.5 sm:px-5 sm:py-2 rounded transition-all duration-200 shadow-lg hover:shadow-red-600/30"
+                >
+                  Sign In
+                </Link>
+              </div>
             )}
 
             {/* Mobile Menu Button */}
@@ -164,11 +172,18 @@ export default function Navbar() {
               </Link>
             ))}
             {!isLoggedIn && (
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
+                <Link
+                  href="/login?mode=signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-center w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-2 rounded transition-colors text-sm"
+                >
+                  Register Account
+                </Link>
                 <Link
                   href="/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block text-center w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded transition-colors"
+                  className="block text-center w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded transition-colors text-sm"
                 >
                   Sign In
                 </Link>
